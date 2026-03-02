@@ -10,7 +10,7 @@ function App() {
       id: Date.now(),
       role: 'bot',
       content:
-        '🧠 Voice Therapy Assistant\n\nSpeak when you are ready. I listen and respond by voice.\nEmergency (India): 9152987821',
+        'Voice Therapy Assistant\n\nSpeak when you are ready. I listen and respond by voice.\nEmergency (India): 9152987821',
       timestamp: Date.now(),
       primaryEmotion: 'neutral',
       suicideRiskLevel: 'none',
