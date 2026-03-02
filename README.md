@@ -1,3 +1,6 @@
+IT IS UNDER GOING A MASSIVE CHANGE DUE TO UNEXPECTED CURCUMSTANCES WHICH IS WHY PARTS OF THE PROJECT MAY NOT WORK 
+--------------------------------------------------------------------------------------------------------------------
+⚡Live at:https://therapy-client.onrender.com
 🧠 Therapy AI – Emotion-Aware Conversational Support
 ------------------------------------------------------
 Therapy AI is a prototype web application that explores how emotion-aware language models can generate empathetic conversational responses. The system attempts 
