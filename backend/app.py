@@ -52,7 +52,18 @@ def safe_generate(prompt):
 
         data = resp.json()
 
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.error("No candidates returned: %s", data)
+            return None
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+
+        text = "".join(part.get("text", "") for part in parts).strip()
+
+        if not text:
+            logger.error("Empty Gemini text: %s", data)
+            return None
 
         text = text.replace("```json", "").replace("```", "").strip()
 
