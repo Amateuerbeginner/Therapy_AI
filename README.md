@@ -1,4 +1,4 @@
-IT IS UNDER GOING A MASSIVE CHANGE DUE TO UNEXPECTED CURCUMSTANCES WHICH IS WHY PARTS OF THE PROJECT MAY NOT WORK 
+🚨IT IS UNDER GOING MASSIVE CHANGES AND IS UNDER WORK DUE TO CERTAIN UNEXPECTED CURCUMSTANCES WHICH IS WHY PARTS OF THE PROJECT MAY NOT WORK 
 --------------------------------------------------------------------------------------------------------------------
 ⚡Live at:https://therapy-client.onrender.com
 🧠 Therapy AI – Emotion-Aware Conversational Support
