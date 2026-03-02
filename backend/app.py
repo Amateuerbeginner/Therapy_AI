@@ -14,11 +14,12 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ---------------- API KEY ---------------- #
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY not set")
-
+    logger.warning("GOOGLE_API_KEY not set")
 
 # ---------------- HEALTH ---------------- #
 
@@ -36,23 +37,46 @@ def safe_generate(prompt):
     payload = {
         "contents": [
             {
-                "parts": [
-                    {"text": prompt}
-                ]
+                "parts": [{"text": prompt}]
             }
         ]
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=20)
 
-        if not resp.ok:
-            logger.error(resp.text)
+        response = requests.post(url, json=payload, timeout=20)
+
+        logger.info("Gemini raw response: %s", response.text)
+
+        if response.status_code != 200:
+            logger.error("Gemini API error: %s", response.text)
             return None
 
-        data = resp.json()
+        data = response.json()
 
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        candidates = data.get("candidates")
+
+        if not candidates:
+            logger.error("No candidates returned")
+            return None
+
+        content = candidates[0].get("content")
+
+        if not content:
+            logger.error("No content returned")
+            return None
+
+        parts = content.get("parts")
+
+        if not parts:
+            logger.error("No parts returned")
+            return None
+
+        text = parts[0].get("text")
+
+        if not text:
+            logger.error("No text returned")
+            return None
 
         text = text.replace("```json", "").replace("```", "")
 
@@ -71,10 +95,9 @@ def analyze_emotion_and_style(message):
 User message:
 "{message}"
 
-1. Detect the user's emotional state
-2. Decide the best therapist response tone
+Detect the emotional state of the user.
 
-Return ONLY JSON:
+Return ONLY valid JSON:
 
 {{
  "primary_emotion":"",
@@ -89,29 +112,25 @@ Return ONLY JSON:
     text = safe_generate(prompt)
 
     if not text:
-        return {
-            "primary_emotion": "neutral",
-            "secondary_emotions": [],
-            "valence": "neutral",
-            "arousal": "medium",
-            "response_emotion": "supportive",
-            "voice_tone": "soft"
-        }
+        return default_emotion()
 
     try:
         return json.loads(text)
 
     except Exception:
-        logger.warning("JSON parse failed")
+        logger.warning("Emotion JSON parse failed: %s", text)
+        return default_emotion()
 
-        return {
-            "primary_emotion": "neutral",
-            "secondary_emotions": [],
-            "valence": "neutral",
-            "arousal": "medium",
-            "response_emotion": "supportive",
-            "voice_tone": "soft"
-        }
+
+def default_emotion():
+    return {
+        "primary_emotion": "neutral",
+        "secondary_emotions": [],
+        "valence": "neutral",
+        "arousal": "medium",
+        "response_emotion": "supportive",
+        "voice_tone": "soft"
+    }
 
 
 # ---------------- THERAPY RESPONSE ---------------- #
@@ -119,6 +138,8 @@ Return ONLY JSON:
 def generate_response(message, emotion):
 
     prompt = f"""
+You are a compassionate therapist.
+
 User message:
 "{message}"
 
@@ -151,15 +172,25 @@ def therapy():
         return "", 204
 
     try:
+
         data = request.get_json() or {}
+
         message = (data.get("message") or "").strip()
 
         if not message:
             return jsonify({"error": "message required"}), 400
 
+        logger.info("User message: %s", message)
+
+        # Step 1: emotion analysis
         emotion = analyze_emotion_and_style(message)
 
+        logger.info("Emotion detected: %s", emotion)
+
+        # Step 2: therapy response
         reply = generate_response(message, emotion)
+
+        logger.info("AI reply: %s", reply)
 
         return jsonify({
             "reply": reply,
@@ -169,7 +200,8 @@ def therapy():
         })
 
     except Exception:
-        logger.exception("Server error")
+
+        logger.exception("Unexpected server error")
 
         return jsonify({
             "reply": "I'm here listening. Please tell me more.",
@@ -194,5 +226,7 @@ def server_error(e):
 # ---------------- RUN SERVER ---------------- #
 
 if __name__ == "__main__":
+
     port = int(os.environ.get("PORT", 5000))
+
     app.run(host="0.0.0.0", port=port)
