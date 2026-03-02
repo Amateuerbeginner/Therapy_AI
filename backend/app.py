@@ -14,25 +14,17 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------- API KEY ---------------- #
-
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-if not GOOGLE_API_KEY:
-    logger.warning("GOOGLE_API_KEY not set")
-
-# ---------------- HEALTH ---------------- #
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "healthy"}), 200
 
 
-# ---------------- GEMINI REST CALL ---------------- #
-
 def safe_generate(prompt):
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GOOGLE_API_KEY}"
 
     payload = {
         "contents": [
@@ -43,51 +35,26 @@ def safe_generate(prompt):
     }
 
     try:
+        resp = requests.post(url, json=payload, timeout=20)
 
-        response = requests.post(url, json=payload, timeout=20)
+        logger.info(f"Gemini status: {resp.status_code}")
 
-        logger.info("Gemini raw response: %s", response.text)
-
-        if response.status_code != 200:
-            logger.error("Gemini API error: %s", response.text)
+        if not resp.ok:
+            logger.error(resp.text)
             return None
 
-        data = response.json()
+        data = resp.json()
 
-        candidates = data.get("candidates")
-
-        if not candidates:
-            logger.error("No candidates returned")
-            return None
-
-        content = candidates[0].get("content")
-
-        if not content:
-            logger.error("No content returned")
-            return None
-
-        parts = content.get("parts")
-
-        if not parts:
-            logger.error("No parts returned")
-            return None
-
-        text = parts[0].get("text")
-
-        if not text:
-            logger.error("No text returned")
-            return None
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
 
         text = text.replace("```json", "").replace("```", "")
 
         return text.strip()
 
     except Exception:
-        logger.exception("Gemini REST error")
+        logger.exception("Gemini request failed")
         return None
 
-
-# ---------------- EMOTION ANALYSIS ---------------- #
 
 def analyze_emotion_and_style(message):
 
@@ -95,9 +62,9 @@ def analyze_emotion_and_style(message):
 User message:
 "{message}"
 
-Detect the emotional state of the user.
+Detect the user's emotional state.
 
-Return ONLY valid JSON:
+Return ONLY JSON:
 
 {{
  "primary_emotion":"",
@@ -112,34 +79,34 @@ Return ONLY valid JSON:
     text = safe_generate(prompt)
 
     if not text:
-        return default_emotion()
+        return {
+            "primary_emotion": "neutral",
+            "secondary_emotions": [],
+            "valence": "neutral",
+            "arousal": "medium",
+            "response_emotion": "supportive",
+            "voice_tone": "soft"
+        }
 
     try:
         return json.loads(text)
 
     except Exception:
-        logger.warning("Emotion JSON parse failed: %s", text)
-        return default_emotion()
+        logger.warning("Emotion JSON parse failed")
 
+        return {
+            "primary_emotion": "neutral",
+            "secondary_emotions": [],
+            "valence": "neutral",
+            "arousal": "medium",
+            "response_emotion": "supportive",
+            "voice_tone": "soft"
+        }
 
-def default_emotion():
-    return {
-        "primary_emotion": "neutral",
-        "secondary_emotions": [],
-        "valence": "neutral",
-        "arousal": "medium",
-        "response_emotion": "supportive",
-        "voice_tone": "soft"
-    }
-
-
-# ---------------- THERAPY RESPONSE ---------------- #
 
 def generate_response(message, emotion):
 
     prompt = f"""
-You are a compassionate therapist.
-
 User message:
 "{message}"
 
@@ -163,8 +130,6 @@ Rules:
     return text
 
 
-# ---------------- MAIN ENDPOINT ---------------- #
-
 @app.route("/therapy", methods=["POST", "OPTIONS"])
 def therapy():
 
@@ -174,23 +139,14 @@ def therapy():
     try:
 
         data = request.get_json() or {}
-
         message = (data.get("message") or "").strip()
 
         if not message:
             return jsonify({"error": "message required"}), 400
 
-        logger.info("User message: %s", message)
-
-        # Step 1: emotion analysis
         emotion = analyze_emotion_and_style(message)
 
-        logger.info("Emotion detected: %s", emotion)
-
-        # Step 2: therapy response
         reply = generate_response(message, emotion)
-
-        logger.info("AI reply: %s", reply)
 
         return jsonify({
             "reply": reply,
@@ -201,7 +157,7 @@ def therapy():
 
     except Exception:
 
-        logger.exception("Unexpected server error")
+        logger.exception("Server error")
 
         return jsonify({
             "reply": "I'm here listening. Please tell me more.",
@@ -210,8 +166,6 @@ def therapy():
             "rich_emotion": {}
         }), 500
 
-
-# ---------------- ERROR HANDLERS ---------------- #
 
 @app.errorhandler(404)
 def not_found(e):
@@ -223,10 +177,6 @@ def server_error(e):
     return jsonify({"error": "server error"}), 500
 
 
-# ---------------- RUN SERVER ---------------- #
-
 if __name__ == "__main__":
-
     port = int(os.environ.get("PORT", 5000))
-
     app.run(host="0.0.0.0", port=port)
